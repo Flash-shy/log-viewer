@@ -101,6 +101,20 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+    if (u.pathname === "/openapi.yaml" && req.method === "GET") {
+      const specPath = path.join(__dirname, "cmd/server/openapi/openapi.yaml");
+      const body = await fs.readFile(specPath, "utf8");
+      res.setHeader("Content-Type", "application/yaml; charset=utf-8");
+      res.end(body);
+      return;
+    }
+    if (u.pathname === "/api/docs" && req.method === "GET") {
+      const docPath = path.join(__dirname, "cmd/server/openapi/docs.html");
+      const body = await fs.readFile(docPath, "utf8");
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(body);
+      return;
+    }
     res.statusCode = 404;
     res.end();
   } catch (e) {
