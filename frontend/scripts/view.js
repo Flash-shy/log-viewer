@@ -18,7 +18,7 @@ function resolveFileName() {
   try {
     const s = sessionStorage.getItem("log-viewer-file");
     if (s) return s.trim();
-  } catch (_) {
+  } catch {
     /* ignore */
   }
   return "";
@@ -77,7 +77,7 @@ async function loadContent() {
     renderLines(data);
     try {
       sessionStorage.setItem("log-viewer-file", name);
-    } catch (_) {
+    } catch {
       /* ignore */
     }
   } catch (e) {

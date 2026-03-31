@@ -46,7 +46,7 @@ function renderList(files, issueMap) {
     a.addEventListener("click", () => {
       try {
         sessionStorage.setItem("log-viewer-file", f.name);
-      } catch (_) {
+      } catch {
         /* ignore */
       }
     });
