@@ -4,3 +4,4 @@ node_modules/
 /backend/cmd/server/server
 .specstory/
 .vscode/
+/backend/test-results/
