@@ -29,7 +29,10 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := NewRouter(store)
+	h := NewRouter(store, RouterConfig{
+		AllowedOrigins: []string{"http://127.0.0.1:5173"},
+		RateLimitRPS:   0,
+	})
 
 	t.Run(subName(apitest.Health, "GET_returns_json_ok"), func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -88,7 +91,10 @@ func TestAPI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		hh := NewRouter(st)
+		hh := NewRouter(st, RouterConfig{
+			AllowedOrigins: []string{"http://127.0.0.1:5173"},
+			RateLimitRPS:   0,
+		})
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
 		hh.ServeHTTP(rec, req)
@@ -243,15 +249,45 @@ func TestAPI(t *testing.T) {
 		}
 	})
 
+	t.Run("APIKey|GET_logs_without_key_unauthorized", func(t *testing.T) {
+		hk := NewRouter(store, RouterConfig{
+			APIKey:         "secret-test-key",
+			AllowedOrigins: []string{"http://127.0.0.1:5173"},
+			RateLimitRPS:   0,
+		})
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+		hk.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status %d", rec.Code)
+		}
+	})
+
+	t.Run("APIKey|GET_logs_with_bearer_ok", func(t *testing.T) {
+		hk := NewRouter(store, RouterConfig{
+			APIKey:         "secret-test-key",
+			AllowedOrigins: []string{"http://127.0.0.1:5173"},
+			RateLimitRPS:   0,
+		})
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+		req.Header.Set("Authorization", "Bearer secret-test-key")
+		hk.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d", rec.Code)
+		}
+	})
+
 	t.Run(subName(apitest.CORSPreflight, "OPTIONS_returns_204_and_headers"), func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodOptions, "/api/logs", nil)
+		req.Header.Set("Origin", "http://127.0.0.1:5173")
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status %d", rec.Code)
 		}
-		if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
-			t.Fatalf("missing CORS header")
+		if got, want := rec.Header().Get("Access-Control-Allow-Origin"), "http://127.0.0.1:5173"; got != want {
+			t.Fatalf("CORS header: got %q want %q", got, want)
 		}
 	})
 }

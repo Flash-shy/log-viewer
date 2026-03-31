@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "description": "Static UI for log-viewer (no app dependencies)",
   "scripts": {
-    "start": "npx --yes serve . -p 5173",
+    "start": "node scripts/static-server.mjs",
     "lint": "eslint scripts/"
   },
   "devDependencies": {

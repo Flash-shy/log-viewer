@@ -14,9 +14,44 @@ const logsDir =
   process.env.LOG_VIEWER_LOG_DIR ||
   path.resolve(__dirname, "../logs");
 
-function cors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+const apiKey = (process.env.LOG_VIEWER_API_KEY || "").trim();
+const defaultOrigins = ["http://127.0.0.1:5173", "http://localhost:5173"];
+const corsOrigins = parseCorsOrigins(process.env.LOG_VIEWER_CORS_ORIGINS);
+
+function parseCorsOrigins(raw) {
+  if (!raw || !String(raw).trim()) return defaultOrigins;
+  const s = String(raw).trim();
+  if (s === "*") return ["*"];
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function cors(req, res) {
+  const o = req.headers.origin;
+  if (corsOrigins.length === 1 && corsOrigins[0] === "*") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  } else if (o && corsOrigins.includes(o)) {
+    res.setHeader("Access-Control-Allow-Origin", o);
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-API-Key"
+  );
+}
+
+function unauthorized(req) {
+  if (!apiKey) return false;
+  const auth = req.headers.authorization;
+  const bearer =
+    auth && auth.startsWith("Bearer ")
+      ? auth.slice("Bearer ".length).trim()
+      : "";
+  if (bearer === apiKey) return false;
+  if (req.headers["x-api-key"] === apiKey) return false;
+  return true;
 }
 
 function safeName(name) {
@@ -30,7 +65,9 @@ async function listFiles() {
   for (const e of ents) {
     if (e.isDirectory()) continue;
     if (!safeName(e.name)) continue;
-    const st = await fs.stat(path.join(logsDir, e.name));
+    const st = await fs.lstat(path.join(logsDir, e.name));
+    if (st.isSymbolicLink()) continue;
+    if (!st.isFile()) continue;
     files.push({ name: e.name, size: st.size });
   }
   files.sort((a, b) => a.name.localeCompare(b.name));
@@ -42,6 +79,10 @@ async function readContent(name, tail) {
   const p = path.join(logsDir, name);
   const rel = path.relative(path.resolve(logsDir), path.resolve(p));
   if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error("invalid");
+  const lst = await fs.lstat(p);
+  if (lst.isSymbolicLink()) throw new Error("invalid");
+  if (!lst.isFile()) throw new Error("notfound");
+  if (lst.size > 10 << 20) throw new Error("toolarge");
   let buf;
   try {
     buf = await fs.readFile(p, "utf8");
@@ -54,13 +95,21 @@ async function readContent(name, tail) {
   const total = lines.length;
   const t = Math.min(tail, total);
   const start = total - t;
-  const slice = lines.slice(start);
-  const out = slice.map((text, i) => ({ no: start + i + 1, text }));
-  return { file: name, totalLines: total, lines: out, truncated: false };
+  let slice = lines.slice(start);
+  let lineStart = start;
+  let truncated = false;
+  const maxReturn = 5000;
+  if (slice.length > maxReturn) {
+    slice = slice.slice(-maxReturn);
+    lineStart = total - slice.length;
+    truncated = true;
+  }
+  const out = slice.map((text, i) => ({ no: lineStart + i + 1, text }));
+  return { file: name, totalLines: total, lines: out, truncated };
 }
 
 const server = http.createServer(async (req, res) => {
-  cors(res);
+  cors(req, res);
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
@@ -73,6 +122,13 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true }));
       return;
     }
+    const publicPaths = new Set(["/api/health", "/openapi.yaml", "/api/docs"]);
+    if (unauthorized(req) && !publicPaths.has(u.pathname) && req.method !== "OPTIONS") {
+      res.statusCode = 401;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("unauthorized");
+      return;
+    }
     if (u.pathname === "/api/logs" && req.method === "GET") {
       const data = await listFiles();
       res.setHeader("Content-Type", "application/json");
@@ -81,7 +137,22 @@ const server = http.createServer(async (req, res) => {
     }
     if (u.pathname === "/api/logs/content" && req.method === "GET") {
       const name = u.searchParams.get("name") || "";
-      const tail = Math.min(5000, Math.max(1, Number(u.searchParams.get("tail")) || 400));
+      const rawTail = u.searchParams.get("tail");
+      let tail = 400;
+      if (rawTail !== null && rawTail !== "") {
+        const n = Number(rawTail);
+        if (!Number.isFinite(n) || n < 1) {
+          res.statusCode = 400;
+          res.end("bad request");
+          return;
+        }
+        if (n > 500_000) {
+          res.statusCode = 400;
+          res.end("tail too large");
+          return;
+        }
+        tail = Math.floor(n);
+      }
       try {
         const data = await readContent(name, tail);
         res.setHeader("Content-Type", "application/json");
@@ -95,6 +166,11 @@ const server = http.createServer(async (req, res) => {
         if (e.message === "invalid") {
           res.statusCode = 400;
           res.end("invalid name");
+          return;
+        }
+        if (e.message === "toolarge") {
+          res.statusCode = 413;
+          res.end("payload too large");
           return;
         }
         throw e;
@@ -120,7 +196,7 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     res.statusCode = e.message === "invalid" ? 400 : 500;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.end(String(e));
+    res.end("internal server error");
   }
 });
 

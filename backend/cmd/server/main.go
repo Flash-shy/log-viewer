@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"log-viewer/backend/internal/logstore"
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "HTTP listen address")
+	addr := flag.String("addr", "127.0.0.1:8080", "HTTP listen address")
 	logsDir := flag.String("logs", "", "absolute or relative path to logs directory (default: LOG_VIEWER_LOG_DIR or ../logs from cwd)")
 	flag.Parse()
 
@@ -31,30 +32,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("logs directory: %s", abs)
-	log.Printf("backend listening on http://127.0.0.1%s", *addr)
-	log.Printf("OpenAPI UI: http://127.0.0.1%s/api/docs", *addr)
-	log.Fatal(http.ListenAndServe(*addr, NewRouter(store)))
-}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+	cfg := RouterConfigFromEnv()
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           NewRouter(store, cfg),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"ok":true}`))
-}
 
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	log.Printf("logs directory: %s", abs)
+	log.Printf("listening on http://%s", *addr)
+	log.Printf("OpenAPI UI: http://%s/api/docs", *addr)
+	log.Fatal(srv.ListenAndServe())
 }

@@ -14,7 +14,7 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-(cd "$ROOT/backend" && go run ./cmd/server -addr :8080 -logs "$LOGS") &
+(cd "$ROOT/backend" && go run ./cmd/server -addr 127.0.0.1:8080 -logs "$LOGS") &
 BACK_PID=$!
 
 (cd "$ROOT/frontend" && npm run start) &

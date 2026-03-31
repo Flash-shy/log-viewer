@@ -1,7 +1,13 @@
 openapi: 3.0.3
 info:
   title: Log Viewer API
-  description: 读取本地 logs 目录下的日志文件并返回列表与内容。
+  description: |
+    读取本地 logs 目录下的日志文件并返回列表与内容。
+
+    部署说明（环境变量）：
+    - `LOG_VIEWER_API_KEY`：若设置，则访问 `/api/logs` 与 `/api/logs/content` 需携带 `Authorization: Bearer <key>` 或 `X-API-Key`（健康检查、`/openapi.yaml`、`/api/docs` 仍公开以便查看文档）。
+    - `LOG_VIEWER_CORS_ORIGINS`：允许的 Origin，逗号分隔；未设置时默认为 `http://127.0.0.1:5173` 与 `http://localhost:5173`；设为 `*` 则允许任意 Origin。
+    - `LOG_VIEWER_RATE_LIMIT_RPS` / `LOG_VIEWER_RATE_BURST`：全局限速（按客户端 IP），默认约 100 rps、burst 50；`LOG_VIEWER_RATE_LIMIT_RPS=0` 可关闭。
   version: 0.1.0
 servers:
   - url: http://127.0.0.1:8080
@@ -32,6 +38,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FileList"
+        "401":
+          description: 未授权（已配置 `LOG_VIEWER_API_KEY` 时）
+        "429":
+          description: 请求过于频繁
         "500":
           description: 服务器错误
   /api/logs/content:
@@ -50,7 +60,7 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: 若设置，则只返回文件末尾 N 行（与 offset/limit 互斥）
+          description: 若设置，则只返回文件末尾 N 行（与 offset/limit 互斥）；最大 500000
         - name: offset
           in: query
           schema:
@@ -73,9 +83,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/LogContent"
         "400":
-          description: 参数错误
+          description: 参数错误（含 tail 过大、非法文件名等）
+        "401":
+          description: 未授权（已配置 `LOG_VIEWER_API_KEY` 时）
         "404":
           description: 文件不存在
+        "413":
+          description: 单文件超过大小上限（约 10 MiB）
+        "429":
+          description: 请求过于频繁
         "500":
           description: 服务器错误
   /openapi.yaml:

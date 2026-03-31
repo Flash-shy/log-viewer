@@ -17,11 +17,20 @@ import (
 // maxFileBytes caps how large a single log file may be before Read rejects it.
 const maxFileBytes = 10 << 20 // 10 MiB
 
+// maxTailLines caps the tail parameter to bound memory for the sliding window.
+const maxTailLines = 500_000
+
 // ErrNotFound is returned when the requested log file does not exist under Root.
 var ErrNotFound = errors.New("file not found")
 
 // ErrInvalidName is returned when the file name is empty, unsafe, or escapes Root.
 var ErrInvalidName = errors.New("invalid file name")
+
+// ErrFileTooLarge is returned when the file exceeds maxFileBytes.
+var ErrFileTooLarge = errors.New("file too large")
+
+// ErrTailTooLarge is returned when tail exceeds maxTailLines.
+var ErrTailTooLarge = errors.New("tail too large")
 
 // FileMeta is a log file under the log directory.
 type FileMeta struct {
@@ -57,8 +66,8 @@ func New(root string) (*Store, error) {
 	return &Store{Root: abs}, nil
 }
 
-// List returns regular files in Root, sorted by name. Directories and names that
-// fail safeName are omitted.
+// List returns regular files in Root, sorted by name. Directories, symlinks, and
+// names that fail safeName are omitted.
 func (s *Store) List() ([]FileMeta, error) {
 	entries, err := os.ReadDir(s.Root)
 	if err != nil {
@@ -69,15 +78,22 @@ func (s *Store) List() ([]FileMeta, error) {
 		if e.IsDir() {
 			continue
 		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
 		name := e.Name()
 		if !safeName(name) {
 			continue
 		}
-		out = append(out, FileMeta{Name: name, Size: info.Size()})
+		path := filepath.Join(s.Root, name)
+		fi, err := os.Lstat(path)
+		if err != nil {
+			continue
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !fi.Mode().IsRegular() {
+			continue
+		}
+		out = append(out, FileMeta{Name: name, Size: fi.Size()})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -97,79 +113,42 @@ func (s *Store) Read(name string, offset, limit, tail int) (*Content, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Reject paths that resolve outside Root (e.g. ".." segments after join).
 	rel, err := filepath.Rel(absRoot, absPath)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return nil, ErrInvalidName
 	}
-	fi, err := os.Stat(absPath)
+	fi, err := os.Lstat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	if fi.IsDir() {
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return nil, ErrInvalidName
+	}
+	if !fi.Mode().IsRegular() {
 		return nil, ErrNotFound
 	}
 	if fi.Size() > maxFileBytes {
-		return nil, errors.New("file too large")
+		return nil, ErrFileTooLarge
 	}
 	f, err := os.Open(absPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	defer f.Close()
 
-	lines, err := readAllLines(f)
-	if err != nil {
-		return nil, err
-	}
-	total := len(lines)
-	if total == 0 {
-		return &Content{File: name, TotalLines: 0, Lines: nil}, nil
-	}
-
-	// Upper bound on how many lines we attach to one response (tail or window).
-	const maxReturn = 5000
-	truncated := false
-
 	if tail > 0 {
-		if tail > total {
-			tail = total
+		if tail > maxTailLines {
+			return nil, ErrTailTooLarge
 		}
-		start := total - tail
-		chunk := lines[start:]
-		startIdx := start
-		// Keep only the last maxReturn lines of the tail window.
-		if len(chunk) > maxReturn {
-			chunk = chunk[len(chunk)-maxReturn:]
-			startIdx = total - len(chunk)
-			truncated = true
-		}
-		return buildContent(name, total, chunk, startIdx, truncated), nil
+		return readTail(f, name, tail)
 	}
-
-	if offset < 0 {
-		offset = 0
-	}
-	if limit <= 0 {
-		limit = 500
-	}
-	if limit > maxReturn {
-		limit = maxReturn
-	}
-	if offset >= total {
-		return &Content{File: name, TotalLines: total, Lines: nil}, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-	chunk := lines[offset:end]
-	// Truncated means more lines exist after this window (not the whole file).
-	truncated = end < total
-	return buildContent(name, total, chunk, offset, truncated), nil
+	return readOffsetLimit(f, name, offset, limit)
 }
 
 // buildContent maps raw line strings to Line values with 1-based line numbers starting at startIdx.
@@ -181,17 +160,92 @@ func buildContent(name string, total int, texts []string, startIdx int, truncate
 	return &Content{File: name, TotalLines: total, Lines: lines, Truncated: truncated}
 }
 
-// readAllLines reads r line by line; each line may be up to 1 MiB (scanner buffer).
-func readAllLines(r io.Reader) ([]string, error) {
+func newScanner(r io.Reader) *bufio.Scanner {
 	sc := bufio.NewScanner(r)
 	const maxLine = 1024 * 1024
 	buf := make([]byte, maxLine)
 	sc.Buffer(buf, maxLine)
-	var out []string
-	for sc.Scan() {
-		out = append(out, sc.Text())
+	return sc
+}
+
+func readOffsetLimit(r io.Reader, name string, offset, limit int) (*Content, error) {
+	const maxReturn = 5000
+	if offset < 0 {
+		offset = 0
 	}
-	return out, sc.Err()
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > maxReturn {
+		limit = maxReturn
+	}
+
+	sc := newScanner(r)
+	lineIdx := 0
+	var chunk []string
+	startIdx := offset
+
+	for sc.Scan() {
+		text := sc.Text()
+		if lineIdx >= offset && len(chunk) < limit {
+			chunk = append(chunk, text)
+		}
+		lineIdx++
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+
+	total := lineIdx
+	if total == 0 {
+		return &Content{File: name, TotalLines: 0, Lines: nil}, nil
+	}
+	if offset >= total {
+		return &Content{File: name, TotalLines: total, Lines: nil}, nil
+	}
+
+	end := offset + len(chunk)
+	truncated := end < total
+	return buildContent(name, total, chunk, startIdx, truncated), nil
+}
+
+func readTail(r io.Reader, name string, tail int) (*Content, error) {
+	const maxReturn = 5000
+	sc := newScanner(r)
+
+	var window []string
+	total := 0
+	for sc.Scan() {
+		total++
+		window = append(window, sc.Text())
+		if len(window) > tail {
+			window = window[1:]
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	if total == 0 {
+		return &Content{File: name, TotalLines: 0, Lines: nil}, nil
+	}
+
+	effectiveTail := tail
+	if effectiveTail > total {
+		effectiveTail = total
+	}
+	if len(window) > effectiveTail {
+		window = window[len(window)-effectiveTail:]
+	}
+
+	startIdx := total - len(window)
+	truncated := false
+	chunk := window
+	if len(chunk) > maxReturn {
+		chunk = chunk[len(chunk)-maxReturn:]
+		startIdx = total - len(chunk)
+		truncated = true
+	}
+	return buildContent(name, total, chunk, startIdx, truncated), nil
 }
 
 // safeName allows only a single path segment of letters, digits, dot, underscore, and hyphen.
