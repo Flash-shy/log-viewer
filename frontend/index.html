@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="api-base" content="http://127.0.0.1:8080" />
+    <title>Log Viewer</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top">
+        <h1>Log Viewer</h1>
+        <p class="hint">选择日志文件查看内容（数据来自后端加载的 <code>logs/</code> 目录）</p>
+      </header>
+      <div class="layout">
+        <aside class="sidebar">
+          <label for="file-select">日志文件</label>
+          <select id="file-select" aria-label="日志文件"></select>
+          <div class="controls">
+            <label>
+              末尾行数
+              <input type="number" id="tail-input" min="1" max="5000" value="400" />
+            </label>
+            <button type="button" id="refresh-btn">刷新</button>
+          </div>
+          <p id="status" class="status" role="status"></p>
+        </aside>
+        <main class="main">
+          <pre id="log-view" class="log-view" aria-live="polite"></pre>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="scripts/main.js"></script>
+  </body>
+</html>

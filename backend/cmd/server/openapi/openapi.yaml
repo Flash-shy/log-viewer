@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: Log Viewer API
+  description: 读取本地 logs 目录下的日志文件并返回列表与内容。
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: 本地开发
+paths:
+  /api/health:
+    get:
+      summary: 健康检查
+      operationId: health
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /api/logs:
+    get:
+      summary: 列出日志目录中的文件
+      operationId: listLogs
+      responses:
+        "200":
+          description: 文件列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileList"
+        "500":
+          description: 服务器错误
+  /api/logs/content:
+    get:
+      summary: 读取指定日志文件内容（按行）
+      operationId: logContent
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 文件名（不含路径），如 nginx.log
+        - name: tail
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 若设置，则只返回文件末尾 N 行（与 offset/limit 互斥）
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: 从第几行开始（0-based），默认 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 500
+          description: 最多返回行数，默认 500，最大 5000
+      responses:
+        "200":
+          description: 日志行
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogContent"
+        "400":
+          description: 参数错误
+        "404":
+          description: 文件不存在
+        "500":
+          description: 服务器错误
+  /openapi.yaml:
+    get:
+      summary: OpenAPI 规范（YAML）
+      operationId: getOpenAPISpec
+      responses:
+        "200":
+          description: YAML 文档
+          content:
+            application/yaml:
+              schema:
+                type: string
+components:
+  schemas:
+    FileList:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileMeta"
+    FileMeta:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+    LogContent:
+      type: object
+      properties:
+        file:
+          type: string
+        totalLines:
+          type: integer
+        truncated:
+          type: boolean
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogLine"
+    LogLine:
+      type: object
+      properties:
+        no:
+          type: integer
+          description: 行号（从 1 开始）
+        text:
+          type: string

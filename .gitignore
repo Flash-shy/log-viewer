@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+/backend/server
+/backend/cmd/server/server
+.specstory/
+.vscode/
