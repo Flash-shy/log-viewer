@@ -8,29 +8,16 @@
     <link rel="stylesheet" href="styles/main.css" />
   </head>
   <body>
-    <div id="app">
+    <div id="app" class="page page--list">
       <header class="top">
         <h1>Log Viewer</h1>
-        <p class="hint">选择日志文件查看内容（数据来自后端加载的 <code>logs/</code> 目录）</p>
+        <p class="hint">点击文件名在独立页面中查看内容（数据来自后端加载的 <code>logs/</code> 目录）</p>
       </header>
-      <div class="layout">
-        <aside class="sidebar">
-          <label for="file-select">日志文件</label>
-          <select id="file-select" aria-label="日志文件"></select>
-          <div class="controls">
-            <label>
-              末尾行数
-              <input type="number" id="tail-input" min="1" max="5000" value="400" />
-            </label>
-            <button type="button" id="refresh-btn">刷新</button>
-          </div>
-          <p id="status" class="status" role="status"></p>
-        </aside>
-        <main class="main">
-          <pre id="log-view" class="log-view" aria-live="polite"></pre>
-        </main>
-      </div>
+      <main class="list-main">
+        <p id="status" class="status" role="status"></p>
+        <ul id="log-list" class="log-list" aria-label="日志文件列表"></ul>
+      </main>
     </div>
-    <script type="module" src="scripts/main.js"></script>
+    <script type="module" src="scripts/list.js"></script>
   </body>
 </html>

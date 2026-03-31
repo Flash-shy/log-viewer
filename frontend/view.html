@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="api-base" content="http://127.0.0.1:8080" />
+    <title>日志内容 · Log Viewer</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <div id="app" class="page page--view">
+      <header class="top top--view">
+        <div class="top__row">
+          <a id="back-link" class="back-link" href="index.html">← 返回列表</a>
+        </div>
+        <h1 id="file-title" class="file-title">日志内容</h1>
+        <p class="hint">末尾行数控制下方预览窗口；疑似问题行会高亮显示</p>
+      </header>
+      <div class="view-toolbar">
+        <label>
+          末尾行数
+          <input type="number" id="tail-input" min="1" max="5000" value="400" />
+        </label>
+        <button type="button" id="refresh-btn">刷新</button>
+        <p id="status" class="status status--inline" role="status"></p>
+      </div>
+      <main class="main main--full">
+        <pre id="log-view" class="log-view" aria-live="polite"></pre>
+      </main>
+    </div>
+    <script type="module" src="scripts/view.js"></script>
+  </body>
+</html>

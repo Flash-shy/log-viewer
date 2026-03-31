@@ -1,17 +1,27 @@
-const apiBase = () => {
-  const m = document.querySelector('meta[name="api-base"]');
-  return (m && m.getAttribute("content")) || "http://127.0.0.1:8080";
-};
+import { fetchJSON, lineHasIssue } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
 
-async function fetchJSON(path) {
-  const res = await fetch(`${apiBase()}${path}`);
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(t || res.statusText);
+/** Resolve log file name from ?name=, #name=, or sessionStorage (set when clicking from index). */
+function resolveFileName() {
+  const q = new URLSearchParams(window.location.search);
+  let name = q.get("name");
+  if (name) return name.trim();
+
+  const rawHash = window.location.hash.replace(/^#/, "");
+  if (rawHash) {
+    const hq = new URLSearchParams(rawHash);
+    name = hq.get("name");
+    if (name) return name.trim();
   }
-  return res.json();
+
+  try {
+    const s = sessionStorage.getItem("log-viewer-file");
+    if (s) return s.trim();
+  } catch (_) {
+    /* ignore */
+  }
+  return "";
 }
 
 function renderLines(data) {
@@ -26,6 +36,7 @@ function renderLines(data) {
   for (const row of lines) {
     const span = document.createElement("span");
     span.className = "log-line";
+    if (lineHasIssue(row.text)) span.classList.add("log-line--issue");
     const no = document.createElement("span");
     no.className = "line-no";
     no.textContent = String(row.no);
@@ -50,53 +61,43 @@ function setError(err) {
   $("log-view").textContent = "";
 }
 
-async function loadFileList() {
-  const data = await fetchJSON("/api/logs");
-  const sel = $("file-select");
-  sel.innerHTML = "";
-  const files = data.files || [];
-  if (files.length === 0) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "(无文件)";
-    sel.append(opt);
-    return;
-  }
-  for (const f of files) {
-    const opt = document.createElement("option");
-    opt.value = f.name;
-    opt.textContent = `${f.name} (${f.size} B)`;
-    sel.append(opt);
-  }
-}
-
 async function loadContent() {
-  const name = $("file-select").value;
+  const name = resolveFileName();
   if (!name) {
-    setError(new Error("没有可显示的日志文件"));
+    setError(new Error("缺少文件参数：请从首页选择日志"));
     return;
   }
+  $("file-title").textContent = name;
+  document.title = `${name} · Log Viewer`;
   const tail = Math.min(5000, Math.max(1, $("tail-input").valueAsNumber || 400));
   $("status").textContent = "加载中…";
   try {
     const q = new URLSearchParams({ name, tail: String(tail) });
     const data = await fetchJSON(`/api/logs/content?${q}`);
     renderLines(data);
+    try {
+      sessionStorage.setItem("log-viewer-file", name);
+    } catch (_) {
+      /* ignore */
+    }
   } catch (e) {
     setError(e);
   }
 }
 
-async function init() {
-  try {
-    await loadFileList();
-    await loadContent();
-  } catch (e) {
-    setError(e);
+function init() {
+  const name = resolveFileName();
+  const back = $("back-link");
+  back.href = "index.html";
+
+  if (!name) {
+    setError(new Error("缺少文件参数：请从首页选择日志"));
+    return;
   }
 
-  $("file-select").addEventListener("change", () => loadContent());
+  $("tail-input").addEventListener("change", () => loadContent());
   $("refresh-btn").addEventListener("click", () => loadContent());
+  loadContent();
 }
 
 init();
