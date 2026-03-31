@@ -1,3 +1,6 @@
+// Package logstore provides read-only access to plain-text log files under a single
+// directory: listing files, validating names to avoid path traversal, and reading
+// line ranges or tail segments with size limits.
 package logstore
 
 import (
@@ -11,9 +14,13 @@ import (
 	"unicode"
 )
 
+// maxFileBytes caps how large a single log file may be before Read rejects it.
 const maxFileBytes = 10 << 20 // 10 MiB
 
+// ErrNotFound is returned when the requested log file does not exist under Root.
 var ErrNotFound = errors.New("file not found")
+
+// ErrInvalidName is returned when the file name is empty, unsafe, or escapes Root.
 var ErrInvalidName = errors.New("invalid file name")
 
 // FileMeta is a log file under the log directory.
@@ -50,7 +57,8 @@ func New(root string) (*Store, error) {
 	return &Store{Root: abs}, nil
 }
 
-// List returns regular files in Root, sorted by name.
+// List returns regular files in Root, sorted by name. Directories and names that
+// fail safeName are omitted.
 func (s *Store) List() ([]FileMeta, error) {
 	entries, err := os.ReadDir(s.Root)
 	if err != nil {
@@ -89,6 +97,7 @@ func (s *Store) Read(name string, offset, limit, tail int) (*Content, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Reject paths that resolve outside Root (e.g. ".." segments after join).
 	rel, err := filepath.Rel(absRoot, absPath)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return nil, ErrInvalidName
@@ -121,6 +130,7 @@ func (s *Store) Read(name string, offset, limit, tail int) (*Content, error) {
 		return &Content{File: name, TotalLines: 0, Lines: nil}, nil
 	}
 
+	// Upper bound on how many lines we attach to one response (tail or window).
 	const maxReturn = 5000
 	truncated := false
 
@@ -131,6 +141,7 @@ func (s *Store) Read(name string, offset, limit, tail int) (*Content, error) {
 		start := total - tail
 		chunk := lines[start:]
 		startIdx := start
+		// Keep only the last maxReturn lines of the tail window.
 		if len(chunk) > maxReturn {
 			chunk = chunk[len(chunk)-maxReturn:]
 			startIdx = total - len(chunk)
@@ -156,10 +167,12 @@ func (s *Store) Read(name string, offset, limit, tail int) (*Content, error) {
 		end = total
 	}
 	chunk := lines[offset:end]
+	// Truncated means more lines exist after this window (not the whole file).
 	truncated = end < total
 	return buildContent(name, total, chunk, offset, truncated), nil
 }
 
+// buildContent maps raw line strings to Line values with 1-based line numbers starting at startIdx.
 func buildContent(name string, total int, texts []string, startIdx int, truncated bool) *Content {
 	lines := make([]Line, len(texts))
 	for i, t := range texts {
@@ -168,6 +181,7 @@ func buildContent(name string, total int, texts []string, startIdx int, truncate
 	return &Content{File: name, TotalLines: total, Lines: lines, Truncated: truncated}
 }
 
+// readAllLines reads r line by line; each line may be up to 1 MiB (scanner buffer).
 func readAllLines(r io.Reader) ([]string, error) {
 	sc := bufio.NewScanner(r)
 	const maxLine = 1024 * 1024
@@ -180,6 +194,7 @@ func readAllLines(r io.Reader) ([]string, error) {
 	return out, sc.Err()
 }
 
+// safeName allows only a single path segment of letters, digits, dot, underscore, and hyphen.
 func safeName(name string) bool {
 	if name == "" || name != filepath.Base(name) {
 		return false
