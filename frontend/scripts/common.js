@@ -1,7 +1,66 @@
+export const THEME_STORAGE_KEY = "log-viewer-theme";
+
+export const THEMES = Object.freeze(["dark", "light", "blue"]);
+
 const apiBase = () => {
   const m = document.querySelector('meta[name="api-base"]');
   return (m && m.getAttribute("content")) || "http://127.0.0.1:8080";
 };
+
+export function getTheme() {
+  try {
+    const t = localStorage.getItem(THEME_STORAGE_KEY);
+    if (THEMES.includes(t)) return t;
+  } catch {
+    /* ignore */
+  }
+  return "dark";
+}
+
+export function applyTheme(theme) {
+  const t = THEMES.includes(theme) ? theme : "dark";
+  document.documentElement.setAttribute("data-theme", t);
+  document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+}
+
+export function setTheme(theme) {
+  if (!THEMES.includes(theme)) return;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    /* ignore */
+  }
+  applyTheme(theme);
+}
+
+export function setupTheme() {
+  applyTheme(getTheme());
+  const root = document.querySelector(".theme-switch");
+  if (!root) return;
+
+  const buttons = root.querySelectorAll("[data-theme-pick]");
+
+  function syncPressed() {
+    const current = getTheme();
+    for (const btn of buttons) {
+      const pick = btn.getAttribute("data-theme-pick");
+      const on = pick === current;
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.classList.toggle("is-active", on);
+    }
+  }
+
+  for (const btn of buttons) {
+    btn.addEventListener("click", () => {
+      const pick = btn.getAttribute("data-theme-pick");
+      if (THEMES.includes(pick)) {
+        setTheme(pick);
+        syncPressed();
+      }
+    });
+  }
+  syncPressed();
+}
 
 export async function fetchJSON(path) {
   const res = await fetch(`${apiBase()}${path}`);

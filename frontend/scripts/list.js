@@ -1,4 +1,4 @@
-import { fetchJSON, contentHasIssue } from "./common.js";
+import { fetchJSON, contentHasIssue, setupTheme } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -105,4 +105,5 @@ async function init() {
   }
 }
 
+setupTheme();
 init();

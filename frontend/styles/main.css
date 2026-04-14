@@ -1,11 +1,41 @@
-:root {
+:root,
+html[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0d1117;
   --panel: #161b22;
+  --panel-hover: #1c2128;
   --border: #30363d;
   --text: #e6edf3;
   --muted: #8b949e;
   --accent: #58a6ff;
+  --btn-bg: #21262d;
+  --status-error: #f85149;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel-hover: #f0f3f6;
+  --border: #d0d7de;
+  --text: #24292f;
+  --muted: #57606a;
+  --accent: #0969da;
+  --btn-bg: #f6f8fa;
+  --status-error: #cf222e;
+}
+
+html[data-theme="blue"] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --panel: #111c2e;
+  --panel-hover: #18283f;
+  --border: #1e3a5f;
+  --text: #e8f0fe;
+  --muted: #8fa8c4;
+  --accent: #7cb3ff;
+  --btn-bg: #152238;
+  --status-error: #ff8a8a;
 }
 
 * {
@@ -27,9 +57,87 @@ body {
   background: var(--panel);
 }
 
+.top__header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.top__header-row h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
 .top h1 {
   margin: 0 0 0.35rem;
   font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.page--list .top h1 {
+  margin: 0;
+}
+
+.page--list .hint {
+  margin-top: 0.35rem;
+}
+
+.top__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.theme-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+
+.theme-switch__label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.theme-switch__btns {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.theme-switch__btn {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.theme-switch__btn:last-child {
+  border-right: none;
+}
+
+.theme-switch__btn:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+
+.theme-switch__btn.is-active {
+  background: var(--panel);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -89,7 +197,7 @@ body {
 
 .log-item__link:hover {
   border-color: var(--accent);
-  background: #1c2128;
+  background: var(--panel-hover);
 }
 
 .log-item--issue .log-item__link {
@@ -191,7 +299,7 @@ body {
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: #21262d;
+  background: var(--btn-bg);
   color: var(--text);
   cursor: pointer;
   font-size: 0.875rem;
@@ -209,7 +317,7 @@ body {
 }
 
 .status.error {
-  color: #f85149;
+  color: var(--status-error);
 }
 
 .main {

@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="api-base" content="http://127.0.0.1:8080" />
     <title>日志内容 · Log Viewer</title>
+    <script>
+      (function () {
+        var KEY = "log-viewer-theme";
+        var OK = { dark: 1, light: 1, blue: 1 };
+        try {
+          var t = localStorage.getItem(KEY);
+          if (OK[t]) {
+            document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="styles/main.css" />
   </head>
   <body>
@@ -12,6 +25,14 @@
       <header class="top top--view">
         <div class="top__row">
           <a id="back-link" class="back-link" href="index.html">← 返回列表</a>
+          <div class="theme-switch" role="group" aria-label="配色主题">
+            <span class="theme-switch__label">主题</span>
+            <div class="theme-switch__btns">
+              <button type="button" class="theme-switch__btn" data-theme-pick="dark">深色</button>
+              <button type="button" class="theme-switch__btn" data-theme-pick="light">浅色</button>
+              <button type="button" class="theme-switch__btn" data-theme-pick="blue">蓝色</button>
+            </div>
+          </div>
         </div>
         <h1 id="file-title" class="file-title">日志内容</h1>
         <p class="hint">末尾行数控制下方预览窗口；疑似问题行会高亮显示</p>

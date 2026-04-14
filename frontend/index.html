@@ -5,12 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="api-base" content="http://127.0.0.1:8080" />
     <title>Log Viewer</title>
+    <script>
+      (function () {
+        var KEY = "log-viewer-theme";
+        var OK = { dark: 1, light: 1, blue: 1 };
+        try {
+          var t = localStorage.getItem(KEY);
+          if (OK[t]) {
+            document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="styles/main.css" />
   </head>
   <body>
     <div id="app" class="page page--list">
       <header class="top">
-        <h1>Log Viewer</h1>
+        <div class="top__header-row">
+          <h1>Log Viewer</h1>
+          <div class="theme-switch" role="group" aria-label="配色主题">
+            <span class="theme-switch__label">主题</span>
+            <div class="theme-switch__btns">
+              <button type="button" class="theme-switch__btn" data-theme-pick="dark">深色</button>
+              <button type="button" class="theme-switch__btn" data-theme-pick="light">浅色</button>
+              <button type="button" class="theme-switch__btn" data-theme-pick="blue">蓝色</button>
+            </div>
+          </div>
+        </div>
         <p class="hint">点击文件名在独立页面中查看内容（数据来自后端加载的 <code>logs/</code> 目录）</p>
       </header>
       <main class="list-main">

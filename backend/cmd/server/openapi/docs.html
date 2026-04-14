@@ -4,25 +4,210 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Log Viewer API</title>
+    <script>
+      (function () {
+        var KEY = "log-viewer-theme";
+        var OK = { dark: 1, light: 1, blue: 1 };
+        try {
+          var t = localStorage.getItem(KEY);
+          if (OK[t]) {
+            document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link
       rel="stylesheet"
       href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
       crossorigin="anonymous"
     />
+    <style>
+      :root,
+      html[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-hover: #1c2128;
+        --border: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --accent: #58a6ff;
+      }
+      html[data-theme="light"] {
+        color-scheme: light;
+        --bg: #f6f8fa;
+        --panel: #ffffff;
+        --panel-hover: #f0f3f6;
+        --border: #d0d7de;
+        --text: #24292f;
+        --muted: #57606a;
+        --accent: #0969da;
+      }
+      html[data-theme="blue"] {
+        color-scheme: dark;
+        --bg: #0b1220;
+        --panel: #111c2e;
+        --panel-hover: #18283f;
+        --border: #1e3a5f;
+        --text: #e8f0fe;
+        --muted: #8fa8c4;
+        --accent: #7cb3ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+      .docs-top {
+        padding: 0.65rem 1.25rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1rem;
+      }
+      .docs-top__title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .theme-switch {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.65rem;
+      }
+      .theme-switch__label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .theme-switch__btns {
+        display: inline-flex;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        background: var(--bg);
+      }
+      .theme-switch__btn {
+        margin: 0;
+        padding: 0.35rem 0.55rem;
+        border: none;
+        border-right: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-size: 0.75rem;
+        cursor: pointer;
+        line-height: 1.2;
+      }
+      .theme-switch__btn:last-child {
+        border-right: none;
+      }
+      .theme-switch__btn:hover {
+        color: var(--text);
+        background: var(--panel-hover);
+      }
+      .theme-switch__btn.is-active {
+        background: var(--panel);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      #swagger-ui {
+        background: var(--bg);
+      }
+    </style>
   </head>
   <body>
+    <header class="docs-top">
+      <h1 class="docs-top__title">Log Viewer · OpenAPI</h1>
+      <div class="theme-switch" role="group" aria-label="配色主题">
+        <span class="theme-switch__label">主题</span>
+        <div class="theme-switch__btns">
+          <button type="button" class="theme-switch__btn" data-theme-pick="dark">深色</button>
+          <button type="button" class="theme-switch__btn" data-theme-pick="light">浅色</button>
+          <button type="button" class="theme-switch__btn" data-theme-pick="blue">蓝色</button>
+        </div>
+      </div>
+    </header>
     <div id="swagger-ui"></div>
     <script
       src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
       crossorigin="anonymous"
     ></script>
     <script>
-      window.onload = function () {
-        window.ui = SwaggerUIBundle({
-          url: "/openapi.yaml",
-          dom_id: "#swagger-ui",
-        });
-      };
+      (function () {
+        var KEY = "log-viewer-theme";
+        var THEMES = ["dark", "light", "blue"];
+
+        function getTheme() {
+          try {
+            var t = localStorage.getItem(KEY);
+            if (THEMES.indexOf(t) !== -1) return t;
+          } catch (e) {}
+          return "dark";
+        }
+
+        function applyTheme(theme) {
+          var t = THEMES.indexOf(theme) !== -1 ? theme : "dark";
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+        }
+
+        function setTheme(theme) {
+          if (THEMES.indexOf(theme) === -1) return;
+          try {
+            localStorage.setItem(KEY, theme);
+          } catch (e) {}
+          applyTheme(theme);
+        }
+
+        function setupThemeControls() {
+          applyTheme(getTheme());
+          var root = document.querySelector(".theme-switch");
+          if (!root) return;
+          var buttons = root.querySelectorAll("[data-theme-pick]");
+
+          function syncPressed() {
+            var current = getTheme();
+            for (var i = 0; i < buttons.length; i++) {
+              var btn = buttons[i];
+              var pick = btn.getAttribute("data-theme-pick");
+              var on = pick === current;
+              btn.setAttribute("aria-pressed", on ? "true" : "false");
+              btn.classList.toggle("is-active", on);
+            }
+          }
+
+          for (var j = 0; j < buttons.length; j++) {
+            buttons[j].addEventListener("click", function (ev) {
+              var pick = ev.currentTarget.getAttribute("data-theme-pick");
+              if (THEMES.indexOf(pick) !== -1) {
+                setTheme(pick);
+                syncPressed();
+              }
+            });
+          }
+          syncPressed();
+        }
+
+        setupThemeControls();
+
+        window.onload = function () {
+          window.ui = SwaggerUIBundle({
+            url: "/openapi.yaml",
+            dom_id: "#swagger-ui",
+          });
+        };
+      })();
     </script>
   </body>
 </html>

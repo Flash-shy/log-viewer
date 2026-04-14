@@ -1,4 +1,4 @@
-import { fetchJSON, lineHasIssue } from "./common.js";
+import { fetchJSON, lineHasIssue, setupTheme } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -100,4 +100,5 @@ function init() {
   loadContent();
 }
 
+setupTheme();
 init();
